@@ -38,11 +38,13 @@ bot.on('spawn', () => {
         });
 
         if (bed) {
-            try {
-                await bot.sleep(bed);
-                console.log('BOT IS SLEEPING 💤');
-            } catch (err) {
-                console.log('Could not sleep:', err.message);
+    try {
+        await bot.activateBlock(bed);
+        console.log('BOT RIGHT-CLICKED BED 🛏️');
+    } catch (err) {
+        console.log('Could not right-click bed:', err.message);
+    }
+}
             }
         } else {
             console.log('No bed found nearby.');
