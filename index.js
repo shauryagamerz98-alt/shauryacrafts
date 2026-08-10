@@ -31,23 +31,23 @@ bot.on('spawn', () => {
         bot.chat('/login shaurya98');
     }, 3000);
 
-    setTimeout(async () => {
-        const bed = bot.findBlock({
-            matching: block => bot.isABed(block),
-            maxDistance: 6
-        });
+    setInterval(async () => {
+    const bed = bot.findBlock({
+        matching: block => bot.isABed(block),
+        maxDistance: 6
+    });
 
-        if (bed) {
-            try {
-                await bot.activateBlock(bed);
-                console.log('BOT RIGHT-CLICKED BED');
-            } catch (err) {
-                console.log('Could not right-click bed:', err.message);
-            }
-        } else {
-            console.log('No bed found nearby.');
+    if (bed) {
+        try {
+            await bot.activateBlock(bed);
+            console.log('BOT RIGHT-CLICKED BED');
+        } catch (err) {
+            console.log('Could not right-click bed:', err.message);
         }
-    }, 5000);
+    } else {
+        console.log('No bed found nearby.');
+    }
+}, 20 * 60 * 1000);
 });
 
 bot.on('kicked', (reason) => {
