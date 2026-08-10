@@ -24,16 +24,30 @@ var bot = mineflayer.createBot({
 });
 
 
-bot.on('login', () => {
-    console.log('BOT LOGGED IN');
-});
-
 bot.on('spawn', () => {
     console.log('BOT SPAWNED');
 
     setTimeout(() => {
         bot.chat('/login shaurya98');
     }, 3000);
+
+    setTimeout(async () => {
+        const bed = bot.findBlock({
+            matching: block => bot.isABed(block),
+            maxDistance: 6
+        });
+
+        if (bed) {
+            try {
+                await bot.sleep(bed);
+                console.log('BOT IS SLEEPING 💤');
+            } catch (err) {
+                console.log('Could not sleep:', err.message);
+            }
+        } else {
+            console.log('No bed found nearby.');
+        }
+    }, 5000);
 });
 
 bot.on('kicked', (reason) => {
