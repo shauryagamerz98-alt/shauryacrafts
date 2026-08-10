@@ -1,6 +1,5 @@
-const bot = mineflayer.createBot({
-    host: host,
-    port: data["port"],
-    username: username,
-    version: '1.21.4'
-});
+{
+  "ip": "shaurycrafts.mcsh.io",
+  "port": 25565,
+  "name": "Narendramodi"
+}
