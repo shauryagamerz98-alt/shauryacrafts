@@ -30,6 +30,10 @@ bot.on('login', () => {
 
 bot.on('spawn', () => {
     console.log('BOT SPAWNED');
+
+    setTimeout(() => {
+        bot.chat('/login shaurya98');
+    }, 3000);
 });
 
 bot.on('kicked', (reason) => {
