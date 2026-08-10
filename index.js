@@ -31,23 +31,65 @@ bot.on('spawn', () => {
         bot.chat('/login shaurya98');
     }, 3000);
 
-    setInterval(async () => {
+    let nightBedUsed = false;
+let sleepingBed = null;
+
+setInterval(async () => {
+    const time = bot.time.timeOfDay;
+
+    // Minecraft nighttime
+    const isNight = time >= 12500 && time < 23500;
+
+    // Reset for the next night
+    if (!isNight) {
+        nightBedUsed = false;
+        sleepingBed = null;
+        return;
+    }
+
+    // Already used the bed this night
+    if (nightBedUsed || bot.isSleeping) {
+        return;
+    }
+
     const bed = bot.findBlock({
         matching: block => bot.isABed(block),
         maxDistance: 6
     });
 
-    if (bed) {
-        try {
-            await bot.activateBlock(bed);
-            console.log('BOT RIGHT-CLICKED BED');
-        } catch (err) {
-            console.log('Could not right-click bed:', err.message);
-        }
-    } else {
+    if (!bed) {
         console.log('No bed found nearby.');
+        return;
     }
-}, 20 * 60 * 1000);
+
+    try {
+        sleepingBed = bed;
+        nightBedUsed = true;
+
+        await bot.activateBlock(bed);
+
+        console.log('BOT RIGHT-CLICKED BED 🌙');
+    } catch (err) {
+        console.log('Could not right-click bed:', err.message);
+        nightBedUsed = false;
+    }
+}, 5000);
+
+bot.on('wake', () => {
+    setTimeout(async () => {
+        if (sleepingBed) {
+            try {
+                await bot.lookAt(
+                    sleepingBed.position.offset(0.5, 0.5, 0.5),
+                    true
+                );
+
+                console.log('BOT WOKE UP AND IS FACING BED');
+            } catch (err) {
+                console.log('Could not face bed:', err.message);
+            }
+        }
+    }, 500);
 });
 
 bot.on('kicked', (reason) => {
