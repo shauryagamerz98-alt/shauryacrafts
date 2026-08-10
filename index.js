@@ -22,3 +22,32 @@ var bot = mineflayer.createBot({
     username: username,
     version: '1.21.10'
 });
+
+
+bot.on('login', () => {
+    console.log('BOT LOGGED IN');
+});
+
+bot.on('spawn', () => {
+    console.log('BOT SPAWNED');
+});
+
+bot.on('kicked', (reason) => {
+    console.log('BOT KICKED:', reason);
+});
+
+bot.on('error', (err) => {
+    console.log('BOT ERROR:', err);
+});
+
+bot.on('end', (reason) => {
+    console.log('BOT DISCONNECTED:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+    console.error('UNCAUGHT EXCEPTION:', err);
+});
+
+process.on('unhandledRejection', (err) => {
+    console.error('UNHANDLED REJECTION:', err);
+});
