@@ -7,195 +7,358 @@ const data = JSON.parse(rawdata);
 const host = data["ip"];
 const username = data["name"];
 
-const bot = mineflayer.createBot({
-    host: host,
-    port: data["port"],
-    username: username,
-    version: '1.21.10'
-});
+let bot = null;
+let sleepInterval = null;
+let reconnectTimer = null;
 
 let nightBedUsed = false;
 let sleepingBed = null;
 let sleepCycleRunning = false;
 
 
-// =========================
-// BOT SPAWN
-// =========================
+// =====================================================
+// CONNECT BOT
+// =====================================================
 
-bot.on('spawn', () => {
-    console.log('BOT SPAWNED');
+function connectBot() {
 
-    // Login after 3 seconds
-    setTimeout(() => {
-        bot.chat('/login shaurya98');
-    }, 3000);
-});
+    console.log('CONNECTING BOT...');
+
+    bot = mineflayer.createBot({
+        host: host,
+        port: data["port"],
+        username: username,
+        version: '1.21.10'
+    });
 
 
-// =========================
-// SLEEP / WAKE SYSTEM
-// =========================
+    // =================================================
+    // SPAWN
+    // =================================================
 
-setInterval(async () => {
+    bot.on('spawn', () => {
 
-    // Prevent multiple sleep checks from running together
-    if (sleepCycleRunning) {
-        return;
-    }
+        console.log('BOT SPAWNED');
 
-    if (!bot.time) {
-        return;
-    }
+        // Login after 3 seconds
+        setTimeout(() => {
 
-    const time = bot.time.timeOfDay;
+            if (bot && bot.player) {
+                bot.chat('/login shaurya98');
+                console.log('BOT LOGIN COMMAND SENT');
+            }
 
-    // Minecraft nighttime
-    const isNight = time >= 12500 && time < 23500;
+        }, 3000);
 
-    // Morning/daytime = reset for next night
-    if (!isNight) {
+
+        // Reset sleep variables after reconnect
         nightBedUsed = false;
         sleepingBed = null;
-        return;
-    }
+        sleepCycleRunning = false;
 
-    // Already slept this night
-    if (nightBedUsed || bot.isSleeping) {
-        return;
-    }
 
-    sleepCycleRunning = true;
-
-    try {
-
-        // Find a bed within 6 blocks
-        const bed = bot.findBlock({
-            matching: block => bot.isABed(block),
-            maxDistance: 6
-        });
-
-        if (!bed) {
-            console.log('No bed found nearby.');
-            sleepCycleRunning = false;
-            return;
+        // Clear old interval if any
+        if (sleepInterval) {
+            clearInterval(sleepInterval);
         }
 
-        sleepingBed = bed;
 
-        console.log(
-            'BED FOUND:',
-            bed.position.x,
-            bed.position.y,
-            bed.position.z
-        );
+        // =================================================
+        // SLEEP CHECK
+        // =================================================
 
-        // Right-click the bed
-        await bot.activateBlock(bed);
+        sleepInterval = setInterval(async () => {
 
-        console.log('BOT RIGHT-CLICKED BED 🌙');
+            if (!bot || !bot.time) {
+                return;
+            }
 
-        // Give Minecraft a moment to put the bot into sleeping state
-        await new Promise(resolve => setTimeout(resolve, 1000));
+            // Don't run multiple sleep cycles
+            if (sleepCycleRunning) {
+                return;
+            }
 
-        // Check whether the bot actually started sleeping
-        if (!bot.isSleeping) {
-            console.log('BOT DID NOT START SLEEPING');
-            sleepingBed = null;
-            sleepCycleRunning = false;
-            return;
-        }
 
-        console.log('BOT IS SLEEPING 💤');
+            const time = bot.time.timeOfDay;
 
-        // Mark this night as completed
-        nightBedUsed = true;
 
-        // Wait until the bot wakes up
-        while (bot.isSleeping) {
-            await new Promise(resolve => setTimeout(resolve, 500));
-        }
+            // Minecraft nighttime
+            const isNight = time >= 12500 && time < 23500;
 
-        console.log('BOT WOKE UP');
 
-        // Wait a tiny bit after waking
-        await new Promise(resolve => setTimeout(resolve, 500));
+            // Daytime
+            // Reset so the bot can sleep again next night
+            if (!isNight) {
 
-        // Turn toward the bed
-        if (sleepingBed) {
+                nightBedUsed = false;
+                sleepingBed = null;
+
+                return;
+            }
+
+
+            // Already slept this night
+            if (nightBedUsed) {
+                return;
+            }
+
+
+            // Already sleeping
+            if (bot.isSleeping) {
+                return;
+            }
+
+
+            sleepCycleRunning = true;
+
 
             try {
 
-                await bot.lookAt(
-                    sleepingBed.position.offset(0.5, 0.5, 0.5),
-                    true
+                // Find nearby bed
+                const bed = bot.findBlock({
+                    matching: block => bot.isABed(block),
+                    maxDistance: 6
+                });
+
+
+                if (!bed) {
+
+                    console.log('NO BED FOUND NEARBY');
+
+                    sleepCycleRunning = false;
+
+                    return;
+                }
+
+
+                sleepingBed = bed;
+
+
+                console.log(
+                    'BED FOUND:',
+                    bed.position.x,
+                    bed.position.y,
+                    bed.position.z
                 );
 
-                console.log('BOT WOKE UP AND IS FACING BED');
+
+                // =========================================
+                // RIGHT CLICK BED
+                // =========================================
+
+                await bot.activateBlock(bed);
+
+                console.log('BOT RIGHT-CLICKED BED 🌙');
+
+
+                // Give Minecraft time to start sleeping
+                await new Promise(resolve =>
+                    setTimeout(resolve, 1000)
+                );
+
+
+                // =========================================
+                // CHECK IF ACTUALLY SLEEPING
+                // =========================================
+
+                if (!bot.isSleeping) {
+
+                    console.log('BOT DID NOT START SLEEPING');
+
+                    sleepingBed = null;
+                    sleepCycleRunning = false;
+
+                    return;
+                }
+
+
+                console.log('BOT IS SLEEPING 💤');
+
+
+                // Mark this night as completed
+                nightBedUsed = true;
+
+
+                // =========================================
+                // WAIT UNTIL BOT WAKES
+                // =========================================
+
+                while (bot && bot.isSleeping) {
+
+                    await new Promise(resolve =>
+                        setTimeout(resolve, 500)
+                    );
+
+                }
+
+
+                console.log('BOT WOKE UP');
+
+
+                // Small delay after waking
+                await new Promise(resolve =>
+                    setTimeout(resolve, 500)
+                );
+
+
+                // =========================================
+                // FACE THE BED
+                // =========================================
+
+                if (sleepingBed && bot) {
+
+                    try {
+
+                        await bot.lookAt(
+                            sleepingBed.position.offset(
+                                0.5,
+                                0.5,
+                                0.5
+                            ),
+                            true
+                        );
+
+
+                        console.log(
+                            'BOT WOKE UP AND IS FACING BED'
+                        );
+
+                    } catch (err) {
+
+                        console.log(
+                            'COULD NOT FACE BED:',
+                            err.message
+                        );
+
+                    }
+
+                }
+
 
             } catch (err) {
 
                 console.log(
-                    'Could not face bed:',
+                    'COULD NOT SLEEP:',
                     err.message
                 );
 
-            }
-        }
+                sleepingBed = null;
 
-    } catch (err) {
+            } finally {
+
+                sleepCycleRunning = false;
+
+            }
+
+        }, 5000);
+
+    });
+
+
+    // =================================================
+    // KICKED
+    // =================================================
+
+    bot.on('kicked', (reason) => {
 
         console.log(
-            'Could not sleep:',
-            err.message
+            'BOT KICKED:',
+            reason
         );
 
-        sleepingBed = null;
+    });
 
-    } finally {
+
+    // =================================================
+    // ERROR
+    // =================================================
+
+    bot.on('error', (err) => {
+
+        console.log(
+            'BOT ERROR:',
+            err.message || err
+        );
+
+    });
+
+
+    // =================================================
+    // DISCONNECTED
+    // =================================================
+
+    bot.on('end', (reason) => {
+
+        console.log(
+            'BOT DISCONNECTED:',
+            reason
+        );
+
+
+        // Stop sleep checking
+        if (sleepInterval) {
+
+            clearInterval(sleepInterval);
+
+            sleepInterval = null;
+
+        }
+
 
         sleepCycleRunning = false;
-
-    }
-
-}, 5000);
+        sleepingBed = null;
 
 
-// =========================
-// KICKED
-// =========================
-
-bot.on('kicked', (reason) => {
-    console.log('BOT KICKED:', reason);
-});
+        // Prevent multiple reconnect timers
+        if (reconnectTimer) {
+            return;
+        }
 
 
-// =========================
-// ERROR
-// =========================
-
-bot.on('error', (err) => {
-    console.log('BOT ERROR:', err);
-});
+        console.log(
+            'RECONNECTING BOT IN 15 SECONDS...'
+        );
 
 
-// =========================
-// DISCONNECTED
-// =========================
+        reconnectTimer = setTimeout(() => {
 
-bot.on('end', (reason) => {
-    console.log('BOT DISCONNECTED:', reason);
-});
+            reconnectTimer = null;
+
+            connectBot();
+
+        }, 15000);
+
+    });
+
+}
 
 
-// =========================
+// =====================================================
+// START BOT
+// =====================================================
+
+connectBot();
+
+
+// =====================================================
 // EXTRA ERROR PROTECTION
-// =========================
+// =====================================================
 
 process.on('uncaughtException', (err) => {
-    console.error('UNCAUGHT EXCEPTION:', err);
+
+    console.error(
+        'UNCAUGHT EXCEPTION:',
+        err
+    );
+
 });
 
+
 process.on('unhandledRejection', (err) => {
-    console.error('UNHANDLED REJECTION:', err);
+
+    console.error(
+        'UNHANDLED REJECTION:',
+        err
+    );
+
 });
