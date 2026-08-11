@@ -10,10 +10,42 @@ const username = data["name"];
 let bot = null;
 let sleepInterval = null;
 let reconnectTimer = null;
+let scheduleInterval = null;
 
 let nightBedUsed = false;
 let sleepingBed = null;
 let sleepCycleRunning = false;
+
+
+// =====================================================
+// INDIA TIME CHECK
+// =====================================================
+
+function getIndiaHour() {
+    const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Kolkata',
+        hour: 'numeric',
+        hour12: false
+    }).formatToParts(new Date());
+
+    const hourPart = parts.find(part => part.type === 'hour');
+
+    return Number(hourPart.value);
+}
+
+
+// =====================================================
+// SHOULD BOT BE OFFLINE?
+// 12:00 AM - 7:00 AM IST
+// =====================================================
+
+function isOfflineTime() {
+
+    const indiaHour = getIndiaHour();
+
+    return indiaHour >= 0 && indiaHour < 7;
+
+}
 
 
 // =====================================================
@@ -22,7 +54,25 @@ let sleepCycleRunning = false;
 
 function connectBot() {
 
+    // Don't connect between midnight and 7 AM IST
+    if (isOfflineTime()) {
+
+        console.log(
+            'BOT IS OFFLINE: 12:00 AM - 7:00 AM IST'
+        );
+
+        return;
+    }
+
+
+    // Prevent duplicate connections
+    if (bot) {
+        return;
+    }
+
+
     console.log('CONNECTING BOT...');
+
 
     bot = mineflayer.createBot({
         host: host,
@@ -40,26 +90,32 @@ function connectBot() {
 
         console.log('BOT SPAWNED');
 
+
         // Login after 3 seconds
         setTimeout(() => {
 
-            if (bot && bot.player) {
+            if (bot && bot.player && !isOfflineTime()) {
+
                 bot.chat('/login shaurya98');
+
                 console.log('BOT LOGIN COMMAND SENT');
+
             }
 
         }, 3000);
 
 
-        // Reset sleep variables after reconnect
+        // Reset sleep variables
         nightBedUsed = false;
         sleepingBed = null;
         sleepCycleRunning = false;
 
 
-        // Clear old interval if any
+        // Clear old interval
         if (sleepInterval) {
+
             clearInterval(sleepInterval);
+
         }
 
 
@@ -69,11 +125,17 @@ function connectBot() {
 
         sleepInterval = setInterval(async () => {
 
+            // Don't do anything during offline hours
+            if (isOfflineTime()) {
+                return;
+            }
+
+
             if (!bot || !bot.time) {
                 return;
             }
 
-            // Don't run multiple sleep cycles
+
             if (sleepCycleRunning) {
                 return;
             }
@@ -86,8 +148,7 @@ function connectBot() {
             const isNight = time >= 12500 && time < 23500;
 
 
-            // Daytime
-            // Reset so the bot can sleep again next night
+            // Daytime = reset for next night
             if (!isNight) {
 
                 nightBedUsed = false;
@@ -142,10 +203,7 @@ function connectBot() {
                 );
 
 
-                // =========================================
-                // RIGHT CLICK BED
-                // =========================================
-
+                // Right-click bed
                 await bot.activateBlock(bed);
 
                 console.log('BOT RIGHT-CLICKED BED 🌙');
@@ -157,10 +215,7 @@ function connectBot() {
                 );
 
 
-                // =========================================
-                // CHECK IF ACTUALLY SLEEPING
-                // =========================================
-
+                // Check sleeping state
                 if (!bot.isSleeping) {
 
                     console.log('BOT DID NOT START SLEEPING');
@@ -179,10 +234,7 @@ function connectBot() {
                 nightBedUsed = true;
 
 
-                // =========================================
-                // WAIT UNTIL BOT WAKES
-                // =========================================
-
+                // Wait until wake-up
                 while (bot && bot.isSleeping) {
 
                     await new Promise(resolve =>
@@ -195,16 +247,13 @@ function connectBot() {
                 console.log('BOT WOKE UP');
 
 
-                // Small delay after waking
+                // Small delay
                 await new Promise(resolve =>
                     setTimeout(resolve, 500)
                 );
 
 
-                // =========================================
-                // FACE THE BED
-                // =========================================
-
+                // Face the bed
                 if (sleepingBed && bot) {
 
                     try {
@@ -295,7 +344,6 @@ function connectBot() {
         );
 
 
-        // Stop sleep checking
         if (sleepInterval) {
 
             clearInterval(sleepInterval);
@@ -305,8 +353,21 @@ function connectBot() {
         }
 
 
+        bot = null;
+
         sleepCycleRunning = false;
         sleepingBed = null;
+
+
+        // Don't reconnect during 12 AM - 7 AM IST
+        if (isOfflineTime()) {
+
+            console.log(
+                'BOT WILL STAY OFFLINE UNTIL 7:00 AM IST'
+            );
+
+            return;
+        }
 
 
         // Prevent multiple reconnect timers
@@ -334,10 +395,90 @@ function connectBot() {
 
 
 // =====================================================
+// SCHEDULE CHECK
+// =====================================================
+
+scheduleInterval = setInterval(() => {
+
+    // Midnight → 7 AM
+    if (isOfflineTime()) {
+
+        // Bot is currently online → disconnect it
+        if (bot) {
+
+            console.log(
+                'MIDNIGHT IST: DISCONNECTING BOT UNTIL 7:00 AM 🌙'
+            );
+
+
+            if (sleepInterval) {
+
+                clearInterval(sleepInterval);
+
+                sleepInterval = null;
+
+            }
+
+
+            nightBedUsed = false;
+            sleepingBed = null;
+            sleepCycleRunning = false;
+
+
+            try {
+
+                bot.quit(
+                    'Scheduled offline time: 12 AM - 7 AM IST'
+                );
+
+            } catch (err) {
+
+                console.log(
+                    'COULD NOT DISCONNECT BOT:',
+                    err.message
+                );
+
+            }
+
+        }
+
+        return;
+    }
+
+
+    // 7 AM → connect
+    if (!bot && !reconnectTimer) {
+
+        console.log(
+            '7:00 AM IST: STARTING BOT ☀️'
+        );
+
+        connectBot();
+
+    }
+
+}, 10000);
+
+
+// =====================================================
 // START BOT
 // =====================================================
 
-connectBot();
+if (isOfflineTime()) {
+
+    console.log(
+        'CURRENT TIME IS BETWEEN 12 AM AND 7 AM IST.'
+    );
+
+    console.log(
+        'BOT WILL START AUTOMATICALLY AT 7:00 AM IST.'
+    );
+
+} else {
+
+    connectBot();
+
+}
 
 
 // =====================================================
